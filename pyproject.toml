@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stellar-gnn"
+version = "0.2.0"
+requires-python = ">=3.10"
+
+# torch-sparse / torch-scatter absent on purpose: PyPI only has generic sdists
+# that build against the wrong ABI. Install them separately per README.
+dependencies = [
+    "torch",
+    "torch-geometric>=2.4",
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "anndata",
+    "scanpy",
+]
+
+[tool.setuptools.packages.find]
+include = ["stellar*"]
+namespaces = false
