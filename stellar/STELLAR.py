@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import models
-from utils import entropy, MarginLoss
+from . import models
+from .utils import entropy, MarginLoss, resolve_louvain_flavor
 import numpy as np
 from itertools import cycle
 import copy
-from torch_geometric.data import ClusterData, ClusterLoader
+from torch_geometric.loader import ClusterData, ClusterLoader
 import scanpy as sc
 from anndata import AnnData
 
@@ -25,8 +25,9 @@ class STELLAR:
         ce = nn.CrossEntropyLoss()
         sum_loss = 0
 
+        num_parts = getattr(self.args, 'num_parts', 100)
         labeled_graph = dataset.labeled_data
-        labeled_data = ClusterData(labeled_graph, num_parts=100, recursive=False)
+        labeled_data = ClusterData(labeled_graph, num_parts=num_parts, recursive=False)
         labeled_loader = ClusterLoader(labeled_data, batch_size=1, shuffle=True,
                                     num_workers=1)
 
@@ -34,7 +35,7 @@ class STELLAR:
             labeled_x = labeled_x.to(device)
             optimizer.zero_grad()
             output, _, _ = model(labeled_x)
-            
+
             loss = ce(output, labeled_x.y)
             
             optimizer.zero_grad()
@@ -78,11 +79,12 @@ class STELLAR:
         ce = MarginLoss(m=-m)
         sum_loss = 0
 
+        num_parts = getattr(self.args, 'num_parts', 100)
         labeled_graph, unlabeled_graph = dataset.labeled_data, dataset.unlabeled_data
-        labeled_data = ClusterData(labeled_graph, num_parts=100, recursive=False)
+        labeled_data = ClusterData(labeled_graph, num_parts=num_parts, recursive=False)
         labeled_loader = ClusterLoader(labeled_data, batch_size=1, shuffle=True,
                                     num_workers=1)
-        unlabeled_data = ClusterData(unlabeled_graph, num_parts=100, recursive=False)
+        unlabeled_data = ClusterData(unlabeled_graph, num_parts=num_parts, recursive=False)
         unlabeled_loader = ClusterLoader(unlabeled_data, batch_size=1, shuffle=True,
                                     num_workers=1)
         unlabel_loader_iter = cycle(unlabeled_loader)
@@ -165,7 +167,10 @@ class STELLAR:
         unlabel_x = self.dataset.unlabeled_data.x
         adata = AnnData(unlabel_x.numpy())
         sc.pp.neighbors(adata)
-        sc.tl.louvain(adata, 1)
+        # resolution=1 is passed positionally as before. Note scanpy ignores it for
+        # flavor='taynaud', but python-louvain's best_partition defaults to 1.0 anyway.
+        flavor = resolve_louvain_flavor(getattr(self.args, 'louvain_flavor', 'auto'))
+        sc.tl.louvain(adata, 1, flavor=flavor)
         clusters = adata.obs['louvain'].values
         clusters = clusters.astype(int)
 

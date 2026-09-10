@@ -1,10 +1,10 @@
 import argparse
-from utils import prepare_save_dir
-from STELLAR import STELLAR
+from stellar.utils import prepare_save_dir, set_seed, select_device
+from stellar import STELLAR
 import numpy as np
 import os
 import torch
-from datasets import GraphDataset, load_tonsilbe_data, load_hubmap_data
+from stellar.datasets import GraphDataset, load_tonsilbe_data, load_hubmap_data
 
 def main():
     parser = argparse.ArgumentParser(description='STELLAR')
@@ -22,11 +22,30 @@ def main():
                     help='mini-batch size')
     parser.add_argument('--distance_thres', default=50, type=int)
     parser.add_argument('--savedir', type=str, default='./')
+    parser.add_argument('--louvain-flavor', type=str, default='auto',
+                    choices=['auto', 'igraph', 'vtraag', 'taynaud'],
+                    help="scanpy louvain flavor. 'igraph' needs only python-igraph and "
+                         "works on every platform. 'auto' prefers vtraag (the `louvain` "
+                         "package) and falls back to igraph with a warning. They give "
+                         "different partitions, which only changes results when "
+                         "--num-seed-class > 0.")
+    parser.add_argument('--num-parts', type=int, default=100,
+                    help='METIS partitions for ClusterData. Lower this for small/sparse '
+                         'graphs -- too few nodes per partition relative to num_parts can '
+                         'produce empty-edge partitions that crash ClusterLoader.')
+    parser.add_argument('--device', type=str, default='auto', choices=['auto', 'cuda', 'mps', 'cpu'],
+                    help="Compute device. 'auto' picks cuda if available, else cpu "
+                         "(never mps automatically -- pass --device mps explicitly; "
+                         "MPS float32 math and RNG stream diverge from CPU/CUDA).")
     args = parser.parse_args()
-    args.cuda = torch.cuda.is_available()
-    args.device = torch.device("cuda" if args.cuda else "cpu")
 
-    # Seed the run and create saving directory
+    # Seed every RNG before any model construction (weight init happens in STELLAR.__init__).
+    set_seed(args.seed)
+
+    args.device = select_device(args.device)
+    args.cuda = args.device.type == 'cuda'
+
+    # Create saving directory
     args.name = '_'.join([args.dataset, args.name])
     args = prepare_save_dir(args, __file__)
     

@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from builtins import range
 from torch_geometric.data import InMemoryDataset, Data
 from sklearn.metrics import pairwise_distances
 import pandas as pd
